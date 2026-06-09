@@ -89,3 +89,27 @@ calage:
     "2037": 69.768
     "2070": 65.887
   tolerance: 1.0                  # tolerance absolue (arrondis Insee)
+
+# --- Modele de passage demographique -> economique (Niveau 2, bandes) --------
+# Granularite : bandes avec zone de transition fine 55-69.
+# TOUTES les valeurs numeriques sont PLACEHOLDER -> DREES/COR a sourcer.
+modele:
+  granularite: "bandes_zone_transition_fine"
+  bandes:                         # bornes inclusives
+    - {nom: "20-24", min: 20, max: 24}
+    - {nom: "25-54", min: 25, max: 54}
+    - {nom: "55-59", min: 55, max: 59}
+    - {nom: "60-61", min: 60, max: 61}
+    - {nom: "62-63", min: 62, max: 63}
+    - {nom: "64-66", min: 64, max: 66}
+    - {nom: "67-69", min: 67, max: 69}
+    - {nom: "70+",   min: 70, max: 106}
+  # alpha = taux d'activite/emploi. PLACEHOLDER -> Insee proj. population active.
+  taux_activite_2026:  {"20-24": 0.50, "25-54": 0.82, "55-59": 0.75, "60-61": 0.55, "62-63": 0.35, "64-66": 0.12, "67-69": 0.05, "70+": 0.01}
+  taux_activite_cible: {"20-24": 0.50, "25-54": 0.82, "55-59": 0.78, "60-61": 0.68, "62-63": 0.55, "64-66": 0.22, "67-69": 0.06, "70+": 0.01}
+  # rho = taux de retraites (droit direct). PLACEHOLDER -> DREES.
+  taux_retraite_2026:  {"20-24": 0.00, "25-54": 0.00, "55-59": 0.02, "60-61": 0.15, "62-63": 0.55, "64-66": 0.85, "67-69": 0.97, "70+": 1.00}
+  taux_retraite_cible: {"20-24": 0.00, "25-54": 0.00, "55-59": 0.02, "60-61": 0.05, "62-63": 0.30, "64-66": 0.80, "67-69": 0.97, "70+": 1.00}
+  reforme_2023:
+    annee_debut: 2026
+    annee_plein_effet: 2030
