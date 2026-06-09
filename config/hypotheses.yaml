@@ -71,6 +71,12 @@ seuils_lecture:
   assiette: "cout_total_travail"   # brut | super_brut | cout_total_travail
   valeurs_test: [0.45, 0.50, 0.55] # analyse de sensibilite au seuil
 
+# --- Fichiers de donnees brutes (data/raw/, lecture seule) -------------------
+donnees:
+  ip2108_xlsx: "data/raw/ip2108_donnees_2026-06-08.xlsx"
+  # URL source : https://www.insee.fr/fr/statistiques/fichier/9004289/ip2108.xlsx
+  # Telecharge le 2026-06-09, horodate fichier 2026-06-08.
+
 # --- Tests de calage (chiffres officiels IP2108, scenario central) -----------
 # Le modele DOIT reproduire ces valeurs avant toute conclusion.
 calage:
