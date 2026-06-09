@@ -54,6 +54,50 @@ def ratio_dependance_demo(pop_par_age: pd.DataFrame, annee: int) -> float:
 
 
 # -----------------------------------------------------------------------------
+#  Brique 1bis — profils par age (discretisation bandes -> vecteur unitaire)
+# -----------------------------------------------------------------------------
+def profil_par_age(bandes: list[dict], taux_par_bande: dict) -> pd.Series:
+    """
+    Diffuse les taux par bande vers un vecteur par age unitaire (index 0..106).
+    Ages non couverts par une bande : 0.
+    """
+    profil = pd.Series(0.0, index=range(107))
+    for bande in bandes:
+        t = taux_par_bande[bande["nom"]]
+        for age in range(bande["min"], bande["max"] + 1):
+            profil[age] = t
+    return profil
+
+
+def profils_annee(hyp: dict, annee: int) -> tuple[pd.Series, pd.Series]:
+    """
+    Retourne (alpha_a, rho_a) : taux d'activite et de retraite par age pour l'annee.
+
+    Rampe lineaire entre profils 2026 et profils cibles (reforme 2023) :
+        w(t) = clip((t - 2026) / (2030 - 2026), 0, 1)
+    w=0 en 2026 (profil initial), w=1 a partir de 2030 (plein effet).
+
+    PLACEHOLDER : valeurs numeriques provisoires, DREES/COR a sourcer.
+    """
+    m = hyp["modele"]
+    bandes = m["bandes"]
+    t0 = m["reforme_2023"]["annee_debut"]        # 2026
+    t1 = m["reforme_2023"]["annee_plein_effet"]  # 2030
+    w = min(1.0, max(0.0, (annee - t0) / (t1 - t0)))
+
+    alpha_bandes = {
+        nom: m["taux_activite_2026"][nom] * (1 - w) + m["taux_activite_cible"][nom] * w
+        for nom in m["taux_activite_2026"]
+    }
+    rho_bandes = {
+        nom: m["taux_retraite_2026"][nom] * (1 - w) + m["taux_retraite_cible"][nom] * w
+        for nom in m["taux_retraite_2026"]
+    }
+
+    return profil_par_age(bandes, alpha_bandes), profil_par_age(bandes, rho_bandes)
+
+
+# -----------------------------------------------------------------------------
 #  Brique 2 — passage demographique -> economique
 # -----------------------------------------------------------------------------
 def cotisants(pop_par_age: pd.Series, taux_emploi_par_age: pd.Series) -> float:
@@ -112,23 +156,28 @@ class ResultatAnnee:
     tau_etoile: float
 
 
-def trajectoire(hyp: dict, pop_par_age: pd.DataFrame,
-                taux_emploi: pd.Series, taux_retraite: pd.Series,
-                annees: range) -> pd.DataFrame:
+def trajectoire(hyp: dict, pop_par_age: pd.DataFrame) -> pd.DataFrame:
     """
-    Calcule la trajectoire de tau*(t). v0 = scenario central.
-    pop_par_age : DataFrame [age x annee], population totale.
+    Calcule tau*(t) pour les annees disponibles en colonnes de pop_par_age.
+    Utilise profils_annee() pour les taux d'activite et de retraite par age.
+
+    NOTE : avec la Figure 4 de l'IP2108, seuls 2026 et 2070 sont disponibles.
+    AVERTISSEMENT : taux d'activite/retraite PLACEHOLDER — ne pas interpreter.
     """
     base = 2026
     ratio_base = hyp["pensions"]["ratio_pension_salaire_2026"]
     regime = hyp["indexation"]["scenario_actif"]
     g = hyp["economie"]["croissance_productivite_reference"]
 
+    annees_dispo = sorted(c for c in pop_par_age.columns if isinstance(c, (int, float)))
+
     lignes = []
-    for an in annees:
+    for an in annees_dispo:
+        an = int(an)
         pop = pop_par_age[an]
-        A = cotisants(pop, taux_emploi)
-        R = retraites(pop, taux_retraite)
+        alpha_a, rho_a = profils_annee(hyp, an)
+        A = cotisants(pop, alpha_a)
+        R = retraites(pop, rho_a)
         pr = pension_relative(an, base, ratio_base, regime, g)
         lignes.append(ResultatAnnee(
             annee=an,
@@ -141,8 +190,18 @@ def trajectoire(hyp: dict, pop_par_age: pd.DataFrame,
 
 
 if __name__ == "__main__":
-    hyp = charger_hypotheses(Path(__file__).parent.parent / "config" / "hypotheses.yaml")
-    print("Hypotheses chargees. Perimetre :", hyp["meta"]["perimetre"])
-    print("Regime d'indexation actif :", hyp["indexation"]["scenario_actif"])
-    print("\n>>> Prochaine etape : charger data/raw/ip2108_pop_age.* et")
-    print(">>> faire passer tests/test_calage.py (40/49/62) avant tout.")
+    from data_insee import charger_pyramide_age_fin  # src/ est dans sys.path[0]
+
+    RACINE = Path(__file__).parent.parent
+    hyp = charger_hypotheses(RACINE / "config" / "hypotheses.yaml")
+    chemin_xlsx = RACINE / hyp["donnees"]["ip2108_xlsx"]
+
+    print("=== TRAJECTOIRE tau*(t) — PLOMBERIE UNIQUEMENT ===")
+    print("*** AVERTISSEMENT : taux activite/retraite = PLACEHOLDER    ***")
+    print("*** Ces valeurs N'ont AUCUNE valeur scientifique.            ***")
+    print("*** Ne pas interpreter avant sourcage DREES/COR.            ***")
+    print()
+
+    pop = charger_pyramide_age_fin(chemin_xlsx)
+    df = trajectoire(hyp, pop)
+    print(df.to_string())
