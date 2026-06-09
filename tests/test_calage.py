@@ -6,10 +6,6 @@ Ils verifient que la maquette reproduit les chiffres officiels de
 l'Insee Premiere n2108 (scenario central) :
   - ratio de dependance demographique 65+/20-64 : 40 (2026), 49 (2040), 62 (2070)
   - population totale : 69.082 (2026), 69.768 (2037), 65.887 (2070) Mhab
-
-Donnees de demonstration ci-dessous = extraits figure 5 de l'IP2108.
-A REMPLACER par le chargement du fichier detaille (population par age fin)
-des que tu auras telecharge l'Insee Resultats compagnon.
 """
 
 import sys
@@ -17,11 +13,14 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from maquette import charger_hypotheses  # noqa: E402
+RACINE = Path(__file__).parent.parent
+sys.path.insert(0, str(RACINE / "src"))
+from maquette import charger_hypotheses, ratio_dependance_demo  # noqa: E402
+from data_insee import charger_pyramide_age_fin                 # noqa: E402
 
-HYP = charger_hypotheses(Path(__file__).parent.parent / "config" / "hypotheses.yaml")
+HYP = charger_hypotheses(RACINE / "config" / "hypotheses.yaml")
 TOL = HYP["calage"]["tolerance"]
+PYRAMIDE_PATH = RACINE / HYP["donnees"]["ip2108_xlsx"]
 
 
 # --- Donnees agregees figure 5 IP2108 (millions), scenario central -----------
@@ -61,6 +60,19 @@ def test_hypotheses_chargees():
     assert "central" in HYP["scenarios_demo"]
 
 
-# NOTE : test 2070 (62) volontairement absent ici — necessite la pyramide
-# par age fin (20-64 non reconstituable depuis les seuls agregats donnes
-# pour 2070 dans la figure 5). Active-le apres chargement du fichier detaille.
+@pytest.mark.skipif(
+    not PYRAMIDE_PATH.exists(),
+    reason=f"Fichier absent : {PYRAMIDE_PATH} — telecharger ip2108.xlsx d'abord",
+)
+def test_ratio_dependance_2070():
+    """Ratio 65+/20-64 en 2070 = 62 (IP2108 fig. 4, scenario central).
+
+    Utilise la pyramide par age fin pour un calcul exact (les agregats de la
+    figure 5 ne permettent pas de distinguer 20-64 en 2070).
+    """
+    pop = charger_pyramide_age_fin(PYRAMIDE_PATH)
+    obtenu = ratio_dependance_demo(pop, 2070)
+    attendu = HYP["calage"]["ratio_dependance_demo"]["2070"]
+    assert abs(obtenu - attendu) <= TOL, (
+        f"2070: ratio={obtenu:.2f}, attendu~{attendu} (tol={TOL})"
+    )
