@@ -1,0 +1,85 @@
+# =============================================================================
+#  hypotheses.yaml — Paramètres centralisés de la maquette de soutenabilité
+#  Toute hypothèse du modèle vit ICI et nulle part ailleurs.
+#  C'est ce fichier qui incarne la promesse de transparence/reproductibilité.
+#  Chaque paramètre est SOURCÉ et DATÉ.
+# =============================================================================
+
+meta:
+  projet: "Soutenabilite_retraites_FR"
+  millesime_demographie: "Insee Premiere n2108, 08/06/2026"
+  perimetre: "Systeme entier (convention macro agregee, esprit COR)"
+  auteur: "Axel Corral"
+  date_creation: "2026-06-09"
+
+# -----------------------------------------------------------------------------
+#  EQUATION FONDAMENTALE
+#  tau*(t) = [R(t)/A(t)] * [Pbar(t)/Wbar(t)]
+#  tau* = taux de cotisation d'equilibre
+#  R/A  = ratio de dependance ECONOMIQUE (retraites / cotisants)
+#  P/W  = pension moyenne relative au salaire moyen
+# -----------------------------------------------------------------------------
+
+# --- Scenarios demographiques Insee 2026 retenus -----------------------------
+# Source: Insee Premiere n2108, figure 3 (population) + Insee Resultats compagnon
+#         (a telecharger: population par sexe x age fin x annee x scenario)
+scenarios_demo:
+  - central          # ICF 1.45 des 2028, solde migratoire +150 000/an
+  - fecondite_basse  # ICF 1.20
+  - fecondite_haute  # ICF 1.70
+  - migration_basse  # +70 000/an
+  - migration_haute  # +230 000/an
+
+# --- Passage demographique -> economique -------------------------------------
+# Taux d'activite/emploi par age : a remplacer par les projections Insee de
+# population active (millesime post-2026 si dispo, sinon 2021 + montee reforme).
+# Valeurs PLACEHOLDER a calibrer — NE PAS utiliser en l'etat pour conclure.
+emploi:
+  source: "PLACEHOLDER - a remplacer par Insee proj. pop. active + conventions COR"
+  age_min_actif: 20
+  age_max_actif: 64
+  taux_chomage_cible: 0.045        # convention COR scenario reference (a verifier)
+  # reforme 2023 : montee age effectif de depart vers 64 ans
+  age_depart_effectif_2026: 62.8   # PLACEHOLDER (DREES)
+  age_depart_effectif_cible: 64.0
+  annee_cible_reforme: 2030
+
+# --- Pensions ----------------------------------------------------------------
+pensions:
+  source: "PLACEHOLDER - DREES 'Les retraites et les retraites', derniere edition"
+  age_min_retraite: 65            # simplification v0 ; affiner avec taux par age DREES
+  # Pension moyenne brute / salaire moyen brut, annee de base
+  ratio_pension_salaire_2026: 0.50  # PLACEHOLDER a caler sur DREES
+
+# --- Hypotheses economiques (reprises du COR) --------------------------------
+economie:
+  source: "COR, rapport annuel juin 2025 (a verifier millesime)"
+  croissance_productivite_reference: 0.010   # 1.0%/an (eventail COR 0.4 a 1.6)
+  croissance_productivite_basse: 0.004
+  croissance_productivite_haute: 0.016
+  part_salaires_dans_PIB: 0.57               # PLACEHOLDER pour conversion pts de PIB
+
+# --- Regime d'indexation (les deux scenarios polaires) -----------------------
+indexation:
+  # Scenario L : legislation constante => pensions indexees sur PRIX
+  #              => P/W derive a la baisse au rythme de la productivite
+  # Scenario N : parite de niveau de vie maintenue => P/W constant (contrefactuel)
+  scenario_actif: "N"   # "L" ou "N" — v0 demarre en N (parite)
+
+# --- Seuils de lecture (PAS l'objet scientifique, lecture illustrative) -------
+seuils_lecture:
+  assiette: "cout_total_travail"   # brut | super_brut | cout_total_travail
+  valeurs_test: [0.45, 0.50, 0.55] # analyse de sensibilite au seuil
+
+# --- Tests de calage (chiffres officiels IP2108, scenario central) -----------
+# Le modele DOIT reproduire ces valeurs avant toute conclusion.
+calage:
+  ratio_dependance_demo:          # 65+ / 20-64, pour 100
+    "2026": 40
+    "2040": 49
+    "2070": 62
+  population_totale_millions:     # scenario central
+    "2026": 69.082
+    "2037": 69.768
+    "2070": 65.887
+  tolerance: 1.0                  # tolerance absolue (arrondis Insee)
