@@ -69,30 +69,48 @@ def profil_par_age(bandes: list[dict], taux_par_bande: dict) -> pd.Series:
     return profil
 
 
-def profils_annee(hyp: dict, annee: int) -> tuple[pd.Series, pd.Series]:
+def profils_annee(hyp: dict, annee: int,
+                  scenario_activite: str | None = None) -> tuple[pd.Series, pd.Series]:
     """
     Retourne (alpha_a, rho_a) : taux d'activite et de retraite par age pour l'annee.
 
-    Rampe lineaire entre profils 2026 et profils cibles (reforme 2023) :
-        w(t) = clip((t - 2026) / (2030 - 2026), 0, 1)
-    w=0 en 2026 (profil initial), w=1 a partir de 2030 (plein effet).
-
-    PLACEHOLDER : valeurs numeriques provisoires, DREES/COR a sourcer.
+    rho  : rampe reforme 2023 (2026->2030, poids w) pour toutes les bandes ;
+           override rho(70+) sur 2026->2070 (montee lente couverture droit direct).
+    alpha, selon scenario_activite (defaut depuis YAML) :
+    - "activite_figee_2026" : rampe reforme 2026->2030, puis cible constante.
+    - "activite_projetee"   : trajectoire lineaire 2026->2070 (COR juin 2025).
     """
     m = hyp["modele"]
     bandes = m["bandes"]
-    t0 = m["reforme_2023"]["annee_debut"]        # 2026
-    t1 = m["reforme_2023"]["annee_plein_effet"]  # 2030
-    w = min(1.0, max(0.0, (annee - t0) / (t1 - t0)))
+    if scenario_activite is None:
+        scenario_activite = m.get("scenario_activite", "activite_figee_2026")
 
-    alpha_bandes = {
-        nom: m["taux_activite_2026"][nom] * (1 - w) + m["taux_activite_cible"][nom] * w
-        for nom in m["taux_activite_2026"]
-    }
+    # --- rho : rampe reforme 2023 ---
+    t0 = m["reforme_2023"]["annee_debut"]
+    t1 = m["reforme_2023"]["annee_plein_effet"]
+    w = min(1.0, max(0.0, (annee - t0) / (t1 - t0)))
     rho_bandes = {
         nom: m["taux_retraite_2026"][nom] * (1 - w) + m["taux_retraite_cible"][nom] * w
         for nom in m["taux_retraite_2026"]
     }
+    # Override rho(70+) : couverture droit direct en hausse 2026->2070
+    mc = m["montee_couverture_70plus"]
+    w70 = min(1.0, max(0.0, (annee - mc["annee_debut"]) / (mc["annee_fin"] - mc["annee_debut"])))
+    rho_bandes["70+"] = (m["taux_retraite_2026"]["70+"] * (1 - w70)
+                          + m["taux_retraite_cible"]["70+"] * w70)
+
+    # --- alpha : selon scenario ---
+    if scenario_activite == "activite_projetee":
+        w_act = min(1.0, max(0.0, (annee - 2026) / (2070 - 2026)))
+        alpha_bandes = {
+            nom: m["taux_activite_2026"][nom] * (1 - w_act) + m["taux_activite_2070"][nom] * w_act
+            for nom in m["taux_activite_2026"]
+        }
+    else:
+        alpha_bandes = {
+            nom: m["taux_activite_2026"][nom] * (1 - w) + m["taux_activite_cible"][nom] * w
+            for nom in m["taux_activite_2026"]
+        }
 
     return profil_par_age(bandes, alpha_bandes), profil_par_age(bandes, rho_bandes)
 
@@ -156,13 +174,11 @@ class ResultatAnnee:
     tau_etoile: float
 
 
-def trajectoire(hyp: dict, pop_par_age: pd.DataFrame) -> pd.DataFrame:
+def trajectoire(hyp: dict, pop_par_age: pd.DataFrame,
+                scenario_activite: str | None = None) -> pd.DataFrame:
     """
     Calcule tau*(t) pour les annees disponibles en colonnes de pop_par_age.
-    Utilise profils_annee() pour les taux d'activite et de retraite par age.
-
-    NOTE : avec la Figure 4 de l'IP2108, seuls 2026 et 2070 sont disponibles.
-    AVERTISSEMENT : taux d'activite/retraite PLACEHOLDER — ne pas interpreter.
+    scenario_activite : "activite_figee_2026" | "activite_projetee" | None (depuis YAML).
     """
     base = 2026
     ratio_base = hyp["pensions"]["ratio_pension_salaire_2026"]
@@ -175,7 +191,7 @@ def trajectoire(hyp: dict, pop_par_age: pd.DataFrame) -> pd.DataFrame:
     for an in annees_dispo:
         an = int(an)
         pop = pop_par_age[an]
-        alpha_a, rho_a = profils_annee(hyp, an)
+        alpha_a, rho_a = profils_annee(hyp, an, scenario_activite=scenario_activite)
         A = cotisants(pop, alpha_a)
         R = retraites(pop, rho_a)
         pr = pension_relative(an, base, ratio_base, regime, g)

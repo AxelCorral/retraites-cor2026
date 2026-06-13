@@ -2,7 +2,7 @@
 test_modele.py — Tests de mecanique du passage demographique -> economique.
 
 Verifie la diffusion des profils par age et la rampe de la reforme 2023.
-Aucune assertion de valeur sur tau* : les taux sont PLACEHOLDER, non interpretables.
+Verifie la mecanique des profils par age et les calages economiques v1 (valeurs sourcees).
 """
 
 import sys
@@ -14,6 +14,7 @@ sys.path.insert(0, str(RACINE / "src"))
 
 from maquette import (  # noqa: E402
     charger_hypotheses, profil_par_age, profils_annee, trajectoire,
+    cotisants, retraites,
 )
 from data_insee import charger_pyramide_age_fin  # noqa: E402
 
@@ -85,3 +86,56 @@ def test_trajectoire_plomberie():
     for annee, row in df.iterrows():
         assert row["ratio_eco"] > 0,         f"R/A <= 0 en {annee}"
         assert 0 < row["tau_etoile"] < 1,    f"tau*={row['tau_etoile']:.3f} hors [0,1] en {annee}"
+
+
+# --- Calage economique 2026 (tolérances larges, v1) -------------------------
+# Sources : Insee EE 2024 (emploi), DREES ed. 2025 (retraites droit direct).
+
+@pytest.mark.skipif(
+    not PYRAMIDE_PATH.exists(),
+    reason=f"Fichier absent : {PYRAMIDE_PATH}",
+)
+def test_calage_economique_A_2026():
+    """A(2026) dans [29, 31] millions (cible ~30 M, COR juin 2025)."""
+    pop = charger_pyramide_age_fin(PYRAMIDE_PATH)
+    alpha_a, _ = profils_annee(HYP, 2026)
+    A_M = cotisants(pop[2026], alpha_a) / 1e6
+    assert 29 <= A_M <= 31, f"A(2026) = {A_M:.2f} M hors [29, 31] M"
+
+
+@pytest.mark.skipif(
+    not PYRAMIDE_PATH.exists(),
+    reason=f"Fichier absent : {PYRAMIDE_PATH}",
+)
+def test_calage_economique_R_2026():
+    """R(2026) dans [15.5, 17.5] millions (cible ~16.3 M, DREES ed. 2025)."""
+    pop = charger_pyramide_age_fin(PYRAMIDE_PATH)
+    _, rho_a = profils_annee(HYP, 2026)
+    R_M = retraites(pop[2026], rho_a) / 1e6
+    assert 15.5 <= R_M <= 17.5, f"R(2026) = {R_M:.2f} M hors [15.5, 17.5] M"
+
+
+@pytest.mark.skipif(
+    not PYRAMIDE_PATH.exists(),
+    reason=f"Fichier absent : {PYRAMIDE_PATH}",
+)
+def test_calage_economique_RA_2026():
+    """R/A(2026) dans [0.53, 0.59] (cible COR : ~0.56, ~1.8 cotisant/retraite)."""
+    pop = charger_pyramide_age_fin(PYRAMIDE_PATH)
+    alpha_a, rho_a = profils_annee(HYP, 2026)
+    A = cotisants(pop[2026], alpha_a)
+    R = retraites(pop[2026], rho_a)
+    RA = R / A
+    assert 0.53 <= RA <= 0.59, f"R/A(2026) = {RA:.4f} hors [0.53, 0.59]"
+
+
+@pytest.mark.skipif(
+    not PYRAMIDE_PATH.exists(),
+    reason=f"Fichier absent : {PYRAMIDE_PATH}",
+)
+def test_calage_economique_tau_2026():
+    """tau*(2026) dans [0.27, 0.31] (coherent avec cotisations effectives ~28%, COR)."""
+    pop = charger_pyramide_age_fin(PYRAMIDE_PATH)
+    df = trajectoire(HYP, pop)
+    tau = df.loc[2026, "tau_etoile"]
+    assert 0.27 <= tau <= 0.31, f"tau*(2026) = {tau:.4f} hors [0.27, 0.31]"
