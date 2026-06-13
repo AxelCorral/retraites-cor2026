@@ -152,3 +152,4 @@ calage_economique:
     ratio_RA: 0.71
     retraites_M: 21.6
     depenses_pct_PIB: 14.2
+    pw_L_g007: 0.37  # P/W scenario L, g=0.7%/an — COR rapport annuel juin 2025

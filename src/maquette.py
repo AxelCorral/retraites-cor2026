@@ -23,6 +23,7 @@ Distinction fondamentale rappelee partout : une PROJECTION conditionnelle
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
+import copy
 import yaml
 import pandas as pd
 
@@ -203,6 +204,39 @@ def trajectoire(hyp: dict, pop_par_age: pd.DataFrame,
             tau_etoile=tau_equilibre(R, A, pr),
         ))
     return pd.DataFrame([l.__dict__ for l in lignes]).set_index("annee")
+
+
+def trajectoires_scenarios(
+    hyp: dict,
+    populations: dict,
+    scenario_activite: str = "activite_projetee",
+) -> dict[str, pd.DataFrame]:
+    """
+    Calcule les trajectoires (regimes N et L) pour plusieurs scenarios demographiques.
+
+    populations     : {nom_scenario: DataFrame pop_par_age}
+    scenario_activite : "activite_figee_2026" | "activite_projetee" | None
+
+    Retourne {nom_scenario: DataFrame(ratio_demo, ratio_eco, tau_N, pw_L, tau_L)}.
+    """
+    resultats = {}
+    for nom, pop in populations.items():
+        hyp_N = copy.deepcopy(hyp)
+        hyp_N["indexation"]["scenario_actif"] = "N"
+        df_N = trajectoire(hyp_N, pop, scenario_activite=scenario_activite)
+
+        hyp_L = copy.deepcopy(hyp)
+        hyp_L["indexation"]["scenario_actif"] = "L"
+        df_L = trajectoire(hyp_L, pop, scenario_activite=scenario_activite)
+
+        resultats[nom] = pd.DataFrame({
+            "ratio_demo": df_N["ratio_demo"],
+            "ratio_eco":  df_N["ratio_eco"],
+            "tau_N":      df_N["tau_etoile"],
+            "pw_L":       df_L["pension_relative"],
+            "tau_L":      df_L["tau_etoile"],
+        })
+    return resultats
 
 
 if __name__ == "__main__":
