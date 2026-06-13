@@ -239,6 +239,48 @@ def trajectoires_scenarios(
     return resultats
 
 
+def _decaler_profil(profil: pd.Series, decalage: int, age_min: int = 55) -> pd.Series:
+    """
+    Decale un profil par age vers la droite de `decalage` annees, pour ages >= age_min.
+    new[age] = old[age - decalage]  (0 si age - decalage hors domaine).
+    age_min = 55 = debut de la zone de transition (bande 55-59 du modele) :
+    la zone de coeur 20-54 est conservee inchangee, evitant les effets de bord.
+    """
+    if decalage == 0:
+        return profil
+    new = profil.copy()
+    for age in range(age_min, 107):
+        src = age - decalage
+        new[age] = profil[src] if 0 <= src <= 106 else 0.0
+    return new
+
+
+def profils_annee_decale(
+    hyp: dict,
+    annee: int,
+    decalage: int = 0,
+    scenario_activite: str | None = None,
+) -> tuple[pd.Series, pd.Series]:
+    """
+    Profils par age avec decalage de l'age de depart en retraite (levier politique).
+
+    decalage = 0 : profils issus de profils_annee() — depart effectif ~64 ans post-reforme.
+    decalage = d > 0 : rho ET alpha decales vers les ages superieurs de d annees.
+      Interpretation : depart effectif ~(64 + d) ans, toutes choses egales par ailleurs.
+      => R baisse (retraites precoces reduites), A monte (cotisants seniors en hausse)
+      => R/A(t, d) < R/A(t, 0), donc tau*(t, d) < tau*(t, 0).
+
+    Le decalage s'applique sur le profil finalise apres la rampe reforme 2023.
+    Il represente un scenario de reforme supplementaire hypothetique — cartographie
+    des possibles, pas une prediction.
+    """
+    alpha_a, rho_a = profils_annee(hyp, annee, scenario_activite=scenario_activite)
+    if decalage != 0:
+        alpha_a = _decaler_profil(alpha_a, decalage)
+        rho_a   = _decaler_profil(rho_a,   decalage)
+    return alpha_a, rho_a
+
+
 if __name__ == "__main__":
     from data_insee import charger_pyramide_age_fin  # src/ est dans sys.path[0]
 

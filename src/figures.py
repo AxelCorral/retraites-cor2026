@@ -25,7 +25,10 @@ import matplotlib.ticker as mtick
 RACINE = Path(__file__).parent.parent
 sys.path.insert(0, str(RACINE / "src"))
 
-from maquette import charger_hypotheses, trajectoires_scenarios  # noqa: E402
+from maquette import (  # noqa: E402
+    charger_hypotheses, trajectoires_scenarios,
+    profils_annee_decale, cotisants, retraites,
+)
 from data_insee import charger_pyramide_scenario               # noqa: E402
 
 HORODATAGE  = date.today().strftime("%Y%m%d")
@@ -144,6 +147,42 @@ def table_validation_cor(
 
 
 # ---------------------------------------------------------------------------
+#  Helpers analyse (frontiere)
+# ---------------------------------------------------------------------------
+
+def _pw_L(hyp: dict, annee: int) -> float:
+    """P/W(L) a l'horizon `annee` : pension relative sous indexation prix."""
+    r = hyp["pensions"]["ratio_pension_salaire_2026"]
+    g = hyp["economie"]["croissance_productivite_reference"]
+    return r * (1.0 + g) ** (-(annee - 2026))
+
+
+def grille_RA(
+    hyp: dict,
+    pop: pd.DataFrame,
+    horizons: list[int],
+    decalages: list[int],
+    scenario_activite: str = "activite_projetee",
+) -> pd.DataFrame:
+    """
+    Calcule R/A(horizon, decalage) pour la cartographie des frontieres d'equilibre.
+    Retourne DataFrame index=annee, colonnes=decalage (int).
+    """
+    lignes = []
+    for an in horizons:
+        pop_an = pop[an]
+        row: dict = {"annee": an}
+        for d in decalages:
+            alpha_a, rho_a = profils_annee_decale(hyp, an, decalage=d,
+                                                  scenario_activite=scenario_activite)
+            A = cotisants(pop_an, alpha_a)
+            R = retraites(pop_an, rho_a)
+            row[d] = R / A
+        lignes.append(row)
+    return pd.DataFrame(lignes).set_index("annee")
+
+
+# ---------------------------------------------------------------------------
 #  Figures
 # ---------------------------------------------------------------------------
 
@@ -168,6 +207,17 @@ _NOTE_SOURCE = (
     "Sources : hypotheses demographiques INSEE IP2108 (08/06/2026), "
     "hypotheses economiques COR rapport annuel juin 2025."
 )
+
+_LABELS_DECALAGE = {
+    0: "Depart ~64 ans (profil cible reforme 2023)",
+    1: "Depart ~65 ans  (+1 an)",
+    2: "Depart ~66 ans  (+2 ans)",
+}
+_STYLES_DECALAGE = {
+    0: {"color": "#1a1a2e", "lw": 2.0, "ls": "-"},
+    1: {"color": "#4a5a9a", "lw": 1.8, "ls": "--"},
+    2: {"color": "#8090c8", "lw": 1.8, "ls": ":"},
+}
 
 
 def fig_ciseaux(df: pd.DataFrame, chemin: Path) -> None:
@@ -257,6 +307,84 @@ def fig_fan_tau_N(traj: dict[str, pd.DataFrame], chemin: Path) -> None:
     print(f"  Fig.2 -> {chemin.name}")
 
 
+def fig_frontiere(
+    grille: pd.DataFrame,
+    hyp: dict,
+    annee: int,
+    decalages: list[int],
+    chemin: Path,
+) -> None:
+    """
+    Fig.3 — Frontiere d'equilibre dans le plan (P/W, tau*) a l'horizon `annee`.
+    Chaque droite tau* = R/A(annee, d) x P/W a pour pente R/A(annee, decalage).
+    Une pente plus faible (decalage plus grand) signifie moins de retraites
+    relativement aux cotisants => tau* inferieur a P/W donne.
+
+    Points de repere :
+      o  Aujourd'hui (2026)          : ancre observable, hors equilibre horizon
+      s  Point N (P/W = 0.52)        : equilibre a parite de pension maintenue
+      D  Point L (P/W projete sous L): equilibre a legislation constante
+    """
+    pw_N      = hyp["pensions"]["ratio_pension_salaire_2026"]   # 0.52
+    pw_L      = _pw_L(hyp, annee)
+    tau_today = 0.289   # tau*(2026), ancre observee (COR ~28 %)
+    pw_range  = [0.22, 0.62]
+
+    fig, ax = plt.subplots(figsize=(7.5, 5.5))
+
+    for d in decalages:
+        ra = grille.loc[annee, d]
+        st = _STYLES_DECALAGE[d]
+        ax.plot(pw_range, [ra * v for v in pw_range],
+                label=f"{_LABELS_DECALAGE[d]}  (R/A = {ra:.3f})", **st)
+
+    # Reperes verticaux P/W(N) et P/W(L)
+    ax.axvline(pw_N, color="grey", lw=0.8, ls="--", alpha=0.55)
+    ax.axvline(pw_L, color="grey", lw=0.8, ls=":",  alpha=0.55)
+    ax.text(pw_N, 0.195, f"P/W(N)\n{pw_N:.2f}", ha="center", fontsize=7.5, color="grey", va="bottom")
+    ax.text(pw_L, 0.195, f"P/W(L)\n{pw_L:.2f}", ha="center", fontsize=7.5, color="grey", va="bottom")
+
+    # Points N (carre) et L (losange) pour chaque decalage
+    dy = 0.006  # ecartement vertical pour lisibilite
+    for i, d in enumerate(decalages):
+        ra  = grille.loc[annee, d]
+        col = _STYLES_DECALAGE[d]["color"]
+        tau_pN = ra * pw_N
+        tau_pL = ra * pw_L
+        ax.scatter([pw_N], [tau_pN], marker="s", s=55, color=col, zorder=5)
+        ax.scatter([pw_L], [tau_pL], marker="D", s=48, color=col, zorder=5)
+        # Annotations decalees pour eviter le chevauchement
+        ax.text(pw_N - 0.012, tau_pN + (i - 1) * dy,
+                f"{tau_pN:.3f}", fontsize=7.5, color=col, ha="right", va="center")
+        ax.text(pw_L + 0.012, tau_pL + (i - 1) * dy,
+                f"{tau_pL:.3f}", fontsize=7.5, color=col, ha="left",  va="center")
+
+    # Ancre 2026
+    ax.scatter([pw_N], [tau_today], marker="o", s=80, color="C3", zorder=6,
+               label=f"Aujourd'hui 2026  (tau* = {tau_today:.3f})")
+    ax.text(pw_N + 0.011, tau_today - 0.005, "2026", fontsize=8, color="C3")
+
+    ax.set_xlim(*pw_range)
+    ax.set_ylim(0.19, 0.52)
+    ax.xaxis.set_major_formatter(mtick.PercentFormatter(xmax=1, decimals=0))
+    ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1, decimals=0))
+    ax.set_xlabel("Pension relative P/W  (% du salaire brut moyen)")
+    ax.set_ylabel("Cotisation d'equilibre tau*  (% du salaire brut)")
+    ax.set_title(
+        f"Frontiere d'equilibre a l'horizon {annee} — levier age de depart\n"
+        "Scenario central INSEE IP2108, activite projetee COR 2025",
+        fontsize=10,
+    )
+    ax.legend(fontsize=8, framealpha=0.9, loc="upper left")
+    ax.text(0.01, -0.13, _NOTE_SOURCE,
+            transform=ax.transAxes, fontsize=7, color="#666")
+
+    fig.tight_layout(rect=[0, 0.05, 1, 1])
+    fig.savefig(chemin, dpi=150)
+    plt.close(fig)
+    print(f"  Fig.3({annee}) -> {chemin.name}")
+
+
 # ---------------------------------------------------------------------------
 #  Pipeline principal
 # ---------------------------------------------------------------------------
@@ -335,8 +463,62 @@ if __name__ == "__main__":
     #  Figures
     # -----------------------------------------------------------------------
     print()
-    print("Generation des figures...")
+    print("Generation des figures (ciseaux + fan)...")
     df_c = traj["central"]
     fig_ciseaux(df_c,   REP_FIGURES / f"fig1_ciseaux_{HORODATAGE}.png")
     fig_fan_tau_N(traj, REP_FIGURES / f"fig2_fan_tauN_{HORODATAGE}.png")
+
+    # -----------------------------------------------------------------------
+    #  Taches A + B + C — Frontieres d'equilibre, levier age de depart
+    # -----------------------------------------------------------------------
+    decalages = hyp["sensibilite"]["decalages_age_depart"]
+    horizons  = hyp["sensibilite"]["horizons_frontiere"]
+    pw_N      = hyp["pensions"]["ratio_pension_salaire_2026"]
+
+    print()
+    print("=" * 70)
+    print("TACHE A — GRILLE R/A(horizon, decalage_age_depart)")
+    print("Scenario : central, activite_projetee")
+    print("=" * 70)
+    pop_central = populations["central"]
+    grille = grille_RA(hyp, pop_central, horizons, decalages)
+    print(grille.rename(columns={d: f"decalage +{d}" for d in decalages})
+               .to_string(float_format="{:.4f}".format))
+
+    # -----------------------------------------------------------------------
+    #  Tache C — lecture cartographique 2070
+    # -----------------------------------------------------------------------
+    print()
+    print("=" * 70)
+    print("TACHE C — FRONTIERE 2070 : pentes et effet levier age de depart")
+    print(f"Assiette : salaire BRUT  |  P/W(N) = {pw_N:.2f}  |  P/W(L,2070) = {_pw_L(hyp, 2070):.3f}")
+    print("=" * 70)
+    hdr = f"  {'Decalage':>10}  {'Age depart':>11}  {'R/A (pente)':>12}  {'tau*(N)':>9}  {'tau*(L)':>9}"
+    print(hdr)
+    print("  " + "-" * (len(hdr) - 2))
+    pw_L_2070 = _pw_L(hyp, 2070)
+    for d in decalages:
+        ra     = grille.loc[2070, d]
+        tau_N  = ra * pw_N
+        tau_L  = ra * pw_L_2070
+        print(f"  {d:>10}  {'~' + str(64 + d) + ' ans':>11}  {ra:>12.4f}  {tau_N:>9.4f}  {tau_L:>9.4f}")
+
+    d0, d_last = decalages[0], decalages[-1]
+    ra0, ra_l  = grille.loc[2070, d0], grille.loc[2070, d_last]
+    delta_tau  = (ra0 - ra_l) * pw_N
+    print()
+    print(f"Passage +{d0} -> +{d_last} ans (~{64+d0} -> ~{64+d_last} ans) :")
+    print(f"  R/A    : {ra0:.4f} -> {ra_l:.4f}  (delta = {ra_l - ra0:+.4f})")
+    print(f"  tau*(N): {ra0*pw_N:.4f} -> {ra_l*pw_N:.4f}  (baisse = {delta_tau:.4f} = {delta_tau*100:.2f} pts)")
+
+    # -----------------------------------------------------------------------
+    #  Figures frontieres
+    # -----------------------------------------------------------------------
+    print()
+    print("Generation des figures de frontiere d'equilibre...")
+    for an in horizons:
+        fig_frontiere(
+            grille, hyp, an, decalages,
+            REP_FIGURES / f"fig3_frontiere_{an}_{HORODATAGE}.png",
+        )
     print("Pipeline termine.")

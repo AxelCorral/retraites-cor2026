@@ -153,3 +153,14 @@ calage_economique:
     retraites_M: 21.6
     depenses_pct_PIB: 14.2
     pw_L_g007: 0.37  # P/W scenario L, g=0.7%/an — COR rapport annuel juin 2025
+
+# --- Parametres d'analyse de sensibilite -------------------------------------
+# Ces parametres pilotent les figures de frontieres d'equilibre (fig.3).
+# NE PAS interpreter le decalage d'age comme une prediction de reforme :
+# c'est une cartographie des possibles (levier politique).
+sensibilite:
+  # Levier age de depart : decalage du profil rho ET alpha (en annees entires).
+  # decalage=0 : profil cible post-reforme 2023 (~64 ans effectif).
+  # decalage=1 : ~65 ans ; decalage=2 : ~66 ans.
+  decalages_age_depart: [0, 1, 2]
+  horizons_frontiere: [2040, 2050, 2070]
