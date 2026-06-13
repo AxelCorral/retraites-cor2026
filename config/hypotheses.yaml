@@ -46,15 +46,17 @@ emploi:
 
 # --- Pensions ----------------------------------------------------------------
 pensions:
-  source: "PLACEHOLDER - DREES 'Les retraites et les retraites', derniere edition"
-  age_min_retraite: 65            # simplification v0 ; affiner avec taux par age DREES
-  # Pension moyenne brute / salaire moyen brut, annee de base
-  ratio_pension_salaire_2026: 0.50  # PLACEHOLDER a caler sur DREES
+  source: "COR, rapport annuel juin 2025 (tableau indicateurs recapitulatifs)"
+  age_min_retraite: 65            # simplification v0 ; affinable avec taux par age DREES
+  # Pension moyenne tous regimes / revenu d'activite BRUT moyen (indicateur COR propre).
+  # NE PAS recalculer par division DREES : concepts differents.
+  # Validation scenario L 2070 : cible ~0.32-0.37 selon productivite (COR juin 2025).
+  ratio_pension_salaire_2026: 0.52  # COR juin 2025 : ~52%, valeur ~2022, tous regimes
 
 # --- Hypotheses economiques (reprises du COR) --------------------------------
 economie:
   source: "COR, rapport annuel juin 2025 (a verifier millesime)"
-  croissance_productivite_reference: 0.010   # 1.0%/an (eventail COR 0.4 a 1.6)
+  croissance_productivite_reference: 0.007   # COR juin 2025 : scenario de reference (convergence 0.7%/an)
   croissance_productivite_basse: 0.004
   croissance_productivite_haute: 0.016
   part_salaires_dans_PIB: 0.57               # PLACEHOLDER pour conversion pts de PIB
@@ -76,6 +78,15 @@ donnees:
   ip2108_xlsx: "data/raw/ip2108_donnees_2026-06-08.xlsx"
   # URL source : https://www.insee.fr/fr/statistiques/fichier/9004289/ip2108.xlsx
   # Telecharge le 2026-06-09, horodate fichier 2026-06-08.
+  # Compagnon IP2108 — population par age fin x annee (1962-2070), tous scenarios
+  # Source centrale : https://www.insee.fr/fr/statistiques/8990852
+  # Scenarios a 1 composante : https://www.insee.fr/fr/statistiques/8990856
+  # Telecharges le 2026-06-13.
+  ip2108_central:   "data/raw/ip2108_central_2026-06-13.xlsx"
+  ip2108_fec_haute: "data/raw/ip2108_fec_haute_2026-06-13.xlsx"
+  ip2108_fec_basse: "data/raw/ip2108_fec_basse_2026-06-13.xlsx"
+  ip2108_smi_haut:  "data/raw/ip2108_smi_haut_2026-06-13.xlsx"
+  ip2108_smi_bas:   "data/raw/ip2108_smi_bas_2026-06-13.xlsx"
 
 # --- Tests de calage (chiffres officiels IP2108, scenario central) -----------
 # Le modele DOIT reproduire ces valeurs avant toute conclusion.
@@ -92,7 +103,10 @@ calage:
 
 # --- Modele de passage demographique -> economique (Niveau 2, bandes) --------
 # Granularite : bandes avec zone de transition fine 55-69.
-# TOUTES les valeurs numeriques sont PLACEHOLDER -> DREES/COR a sourcer.
+# Sources alpha : Insee, enquete Emploi 2024 (taux d'emploi BIT par age).
+#   Agr. observees : 25-49=82.7%, 55-59=77.8%, 60-64=42.4% (publiees TEF 2025).
+#   Bandes 60-61/62-63/64-66 decomposent le 60-64 en coherence avec l'age effectif
+#   moyen de depart en retraite (63 ans 7 mois en 2024, DREES, ed. 2025).
 modele:
   granularite: "bandes_zone_transition_fine"
   bandes:                         # bornes inclusives
@@ -104,12 +118,37 @@ modele:
     - {nom: "64-66", min: 64, max: 66}
     - {nom: "67-69", min: 67, max: 69}
     - {nom: "70+",   min: 70, max: 106}
-  # alpha = taux d'activite/emploi. PLACEHOLDER -> Insee proj. population active.
-  taux_activite_2026:  {"20-24": 0.50, "25-54": 0.82, "55-59": 0.75, "60-61": 0.55, "62-63": 0.35, "64-66": 0.12, "67-69": 0.05, "70+": 0.01}
-  taux_activite_cible: {"20-24": 0.50, "25-54": 0.82, "55-59": 0.78, "60-61": 0.68, "62-63": 0.55, "64-66": 0.22, "67-69": 0.06, "70+": 0.01}
-  # rho = taux de retraites (droit direct). PLACEHOLDER -> DREES.
-  taux_retraite_2026:  {"20-24": 0.00, "25-54": 0.00, "55-59": 0.02, "60-61": 0.15, "62-63": 0.55, "64-66": 0.85, "67-69": 0.97, "70+": 1.00}
-  taux_retraite_cible: {"20-24": 0.00, "25-54": 0.00, "55-59": 0.02, "60-61": 0.05, "62-63": 0.30, "64-66": 0.80, "67-69": 0.97, "70+": 1.00}
+  # alpha = taux d'emploi BIT par bande. Source : Insee EE 2024.
+  # 25-54: 0.84 calibre sur concept cotisants COR (EE 2024 : 25-49=82.7%, 50-54~81%).
+  # 60-64 moyen pondere ~40% vs EE 2024 60-64=42.4% : ecart lie a la granularite ; a affiner.
+  taux_activite_2026:  {"20-24": 0.55, "25-54": 0.84, "55-59": 0.78, "60-61": 0.50, "62-63": 0.30, "64-66": 0.12, "67-69": 0.05, "70+": 0.02}
+  # cible = surcroit RESTANT de la reforme 2023 (hausse 2023-2024 deja dans profil 2026).
+  taux_activite_cible: {"20-24": 0.55, "25-54": 0.84, "55-59": 0.78, "60-61": 0.58, "62-63": 0.45, "64-66": 0.20, "67-69": 0.06, "70+": 0.02}
+  # rho = taux de retraites droit direct. Ancre : age conjoncturel de depart
+  # regime general = 63 ans 7 mois en 2024 (DREES, Les retraites et les retraites, ed. 2025).
+  # Profil cible reflete le report progressif de l'age de depart vers 64 ans (reforme 2023).
+  taux_retraite_2026:  {"20-24": 0.00, "25-54": 0.00, "55-59": 0.02, "60-61": 0.15, "62-63": 0.50, "64-66": 0.85, "67-69": 0.97, "70+": 0.93}
+  taux_retraite_cible: {"20-24": 0.00, "25-54": 0.00, "55-59": 0.02, "60-61": 0.05, "62-63": 0.28, "64-66": 0.80, "67-69": 0.97, "70+": 0.98}
+  # Source rho(70+) : DREES ed. 2025 (~93% des 70+ residants ont un droit direct en 2023).
+  # Montee vers 0.98 en 2070 : hausse couverture (generations avec carrieres completes).
+  montee_couverture_70plus: {annee_debut: 2026, annee_fin: 2070}
+  scenario_activite: "activite_figee_2026"  # "activite_figee_2026" | "activite_projetee"
+  # taux_activite_2070 : utilises si scenario_activite = "activite_projetee".
+  # Source : COR rapport annuel juin 2025 (scenario central d'activite) + tendances structurelles.
+  taux_activite_2070:  {"20-24": 0.57, "25-54": 0.87, "55-59": 0.82, "60-61": 0.65, "62-63": 0.52, "64-66": 0.38, "67-69": 0.12, "70+": 0.03}
   reforme_2023:
     annee_debut: 2026
     annee_plein_effet: 2030
+
+# --- Calage economique (cibles observees 2026 + benchmarks COR) --------------
+# Sources : COR rapport annuel juin 2025 ; DREES "Les retraites et les retraites" ed. 2025.
+calage_economique:
+  cibles_2026:
+    cotisants_M: 30.0                # COR juin 2025 : ~30.4 M cotisants en 2023
+    retraites_residant_M: 16.3       # DREES ed. 2025 : droit direct residant France (fin 2023)
+    ratio_RA: 0.56                   # COR : ~1.8 cotisant/retraite => R/A ≈ 0.56
+    taux_cotisation_effectif: 0.28   # cotisations retraites / masse salariale brute
+  benchmarks_COR_2070:               # validation finale, pas un test v1
+    ratio_RA: 0.71
+    retraites_M: 21.6
+    depenses_pct_PIB: 14.2
