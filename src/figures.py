@@ -3,13 +3,15 @@ figures.py — Pipeline figures et tables de la maquette de soutenabilite.
 
 Usage : python src/figures.py
 Sorties horodatees dans figures/ :
-  fig1_ciseaux_YYYYMMDD.png   — tau*(N) vs P/W(L), scenario central (figure-these)
-  fig2_fan_tauN_YYYYMMDD.png  — faisceau tau*(N), 5 scenarios demographiques
+  fig1_ciseaux_YYYYMMDD.png        — tau*(N) vs P/W(L), scenario central
+  fig2_fan_tauN_YYYYMMDD.png       — faisceau tau*(N), 5 scenarios demographiques
+  fig3_frontiere_ANNEE_YYYYMMDD.png — frontieres equilibre (levier age de depart)
+  fig4_validation_RA_YYYYMMDD.png  — validation R/A maquette vs jalons COR 2026
 
 Tables imprimees en console :
   - Seuil-cotisation : annees franchissement tau*(N) >= {35, 40, 45, 50}%
   - Seuil-pension    : annees franchissement P/W(L) <= {50, 45, 40}%
-  - Validation COR   : R/A et P/W aux jalons 2026 / 2040 / 2070
+  - Head-to-head     : maquette vs COR 2026 (R/A jalons, age equilibre, P/W)
 """
 
 from __future__ import annotations
@@ -107,8 +109,8 @@ def table_validation_cor(
 ) -> pd.DataFrame:
     """
     Compare le modele aux benchmarks COR aux jalons 2026, 2040, 2070.
-    Benchmarks source : COR rapport annuel juin 2025 ; hypotheses.yaml calage_economique.
-    Limite : comparaison depenses % PIB non disponible (part_salaires_dans_PIB = PLACEHOLDER).
+    Benchmarks source : COR rapport annuel juin 2026 ; hypotheses.yaml calage_economique.
+    Validation faite sur R/A : comparaison %PIB HORS PERIMETRE (voir hypotheses.yaml).
     """
     b_2026 = hyp["calage_economique"]["cibles_2026"]
     b_2070 = hyp["calage_economique"]["benchmarks_COR_2070"]
@@ -118,7 +120,7 @@ def table_validation_cor(
                "pw": hyp["pensions"]["ratio_pension_salaire_2026"]},
         2040: {"ra": None, "pw": None},
         2070: {"ra": b_2070["ratio_RA"],
-               "pw": b_2070.get("pw_L_g007")},
+               "pw": b_2070.get("pension_relative")},
     }
 
     df_c = traj["central"]
@@ -205,7 +207,7 @@ _STYLES_FAN = {
 _NOTE_SOURCE = (
     "Projection conditionnelle (toutes choses egales par ailleurs). "
     "Sources : hypotheses demographiques INSEE IP2108 (08/06/2026), "
-    "hypotheses economiques COR rapport annuel juin 2025."
+    "hypotheses economiques COR rapport annuel juin 2026."
 )
 
 _LABELS_DECALAGE = {
@@ -325,9 +327,11 @@ def fig_frontiere(
       s  Point N (P/W = 0.52)        : equilibre a parite de pension maintenue
       D  Point L (P/W projete sous L): equilibre a legislation constante
     """
-    pw_N      = hyp["pensions"]["ratio_pension_salaire_2026"]   # 0.52
+    pw_N      = hyp["pensions"]["ratio_pension_salaire_2026"]
     pw_L      = _pw_L(hyp, annee)
-    tau_today = 0.289   # tau*(2026), ancre observee (COR ~28 %)
+    # tau*(2026) = R/A_cal × P/W(N) : taux d'equilibre integralement contributif
+    # > taux effectif ~28 % car ~1/3 ressources = transferts Etat (277/417 Md€, COR 2026)
+    tau_today = hyp["calage_economique"]["cibles_2026"]["ratio_RA"] * pw_N
     pw_range  = [0.22, 0.62]
 
     fig, ax = plt.subplots(figsize=(7.5, 5.5))
@@ -383,6 +387,136 @@ def fig_frontiere(
     fig.savefig(chemin, dpi=150)
     plt.close(fig)
     print(f"  Fig.3({annee}) -> {chemin.name}")
+
+
+def fig_validation_RA(
+    traj: dict[str, pd.DataFrame],
+    chemin: Path,
+) -> None:
+    """
+    Fig.4 — R/A maquette (courbes continues 2026-2070) vs jalons discrets COR 2026.
+    Figure de validation tete-a-tete pour §5.1 du memoire.
+
+    Sources COR 2026 : rapport annuel juin 2026, onglet Fig 2.3 P2
+    (cor2026_donnees_P2.xlsx) — serie cotisants/retraites inverses.
+    """
+    COR_RA = {2026: 0.569, 2030: 0.571, 2040: 0.610, 2050: 0.650, 2070: 0.766}
+
+    df_c = traj["central"]
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    for nom, df in traj.items():
+        if nom == "central":
+            continue
+        st = _STYLES_FAN[nom]
+        ax.plot(df.index, df["ratio_eco"],
+                label=_NOMS.get(nom, nom),
+                color=st["color"], lw=st["lw"], ls=st["ls"], alpha=0.5)
+
+    ax.plot(df_c.index, df_c["ratio_eco"], color="black", lw=2.2,
+            label="Maquette — central (activite projetee)", zorder=5)
+
+    cor_x = list(COR_RA.keys())
+    cor_y = list(COR_RA.values())
+    ax.scatter(cor_x, cor_y, color="#C0392B", s=70, zorder=6,
+               label="COR 2026 — jalons R/A (Fig 2.3 P2)", marker="o")
+    for x, y in COR_RA.items():
+        ax.annotate(f"{y:.3f}", (x, y), textcoords="offset points",
+                    xytext=(5, 4), fontsize=8, color="#C0392B")
+
+    ax.set_xlim(2025, 2072)
+    ax.set_ylim(0.52, 0.83)
+    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.2f"))
+    ax.set_xlabel("Annee")
+    ax.set_ylabel("R/A  (retraites / cotisants)")
+    ax.set_title(
+        "Ratio de dependance economique — validation maquette vs COR 2026\n"
+        "INSEE IP2108 (2026), activite projetee COR 2025",
+    )
+    ax.legend(fontsize=8.5, framealpha=0.9, loc="upper left")
+    ax.text(0.01, -0.13,
+            "Sources COR 2026 : rapport annuel juin 2026, onglet Fig 2.3 P2 "
+            "(cor2026_donnees_P2.xlsx). " + _NOTE_SOURCE,
+            transform=ax.transAxes, fontsize=7, color="#666")
+
+    fig.tight_layout(rect=[0, 0.05, 1, 1])
+    fig.savefig(chemin, dpi=150)
+    plt.close(fig)
+    print(f"  Fig.4 -> {chemin.name}")
+
+
+def table_head_to_head(
+    traj: dict[str, pd.DataFrame],
+    grille: pd.DataFrame,
+    hyp: dict,
+) -> pd.DataFrame:
+    """
+    Tableau tete-a-tete maquette vs COR 2026 sur les indicateurs comparables.
+
+    Blocs :
+      1. R/A par jalon (2026, 2030, 2040, 2050, 2070)
+      2. Age d'equilibre via levier seul (extrapolation frontiere vs COR 2026)
+      3. Pension relative a 2070 (P/W(L) vs Sc. Ref COR — note Agirc-Arrco)
+
+    PAS de ligne %PIB : conversion HORS PERIMETRE (voir hypotheses.yaml).
+
+    Sources COR 2026 : rapport annuel juin 2026.
+      R/A serie : onglet Fig 2.3 P2.
+      Age equilibre : Tableau 2.10, p. 126 (67,6 ans pour levier seul a 2070).
+      P/W Sc. Ref : onglet Fig 2.3 P2, serie '2.2a'.
+    """
+    COR_RA = {2026: 0.569, 2030: 0.571, 2040: 0.610, 2050: 0.650, 2070: 0.766}
+
+    pw_N   = hyp["pensions"]["ratio_pension_salaire_2026"]
+    g      = hyp["economie"]["croissance_productivite_reference"]
+    b_2070 = hyp["calage_economique"]["benchmarks_COR_2070"]
+    df_c   = traj["central"]
+    lignes = []
+
+    # Bloc 1 : R/A par jalon
+    for an in [2026, 2030, 2040, 2050, 2070]:
+        if an not in df_c.index:
+            continue
+        ra_mod = df_c.loc[an, "ratio_eco"]
+        ra_cor = COR_RA.get(an)
+        ecart  = f"{(ra_mod / ra_cor - 1)*100:+.1f} %" if ra_cor else "—"
+        lignes.append({
+            "Indicateur": f"R/A {an}",
+            "Maquette":   f"{ra_mod:.3f}",
+            "COR 2026":   f"{ra_cor:.3f}" if ra_cor else "n.d.",
+            "Ecart":      ecart,
+            "Note":       "",
+        })
+
+    # Bloc 2 : age d'equilibre via levier seul a 2070
+    # Extrapolation lineaire depuis la grille : delta = R/A(d=2) - R/A(d=1)
+    # d=3 ~67 ans (profil decale de +3 ans par rapport a ~64 ans actuel)
+    if 2070 in grille.index and 1 in grille.columns and 2 in grille.columns:
+        ra_d1     = grille.loc[2070, 1]
+        ra_d2     = grille.loc[2070, 2]
+        ra_d3_est = ra_d2 + (ra_d2 - ra_d1)   # extrap. lineaire
+        tau_d3    = ra_d3_est * pw_N
+        lignes.append({
+            "Indicateur": "Age equilibre 2070 (levier seul)",
+            "Maquette":   f"~67 ans (extrap. d=+3, R/A~{ra_d3_est:.3f}, tau*~{tau_d3:.2f})",
+            "COR 2026":   "67,6 ans",
+            "Ecart":      "~coherent",
+            "Note":       "COR : equilibre depenses=ressources ; maquette : sensibilite R/A par an de decalage",
+        })
+
+    # Bloc 3 : pension relative a 2070
+    pw_L_2070   = pw_N * (1.0 + g) ** (-(2070 - 2026))
+    pw_cor_2070 = b_2070.get("pension_relative")
+    ecart_pw    = f"{(pw_L_2070 / pw_cor_2070 - 1)*100:+.1f} %" if pw_cor_2070 else "—"
+    lignes.append({
+        "Indicateur": "P/W 2070",
+        "Maquette":   f"{pw_L_2070:.3f} (scen.L, indexation prix)",
+        "COR 2026":   f"{pw_cor_2070:.3f} (Sc. Ref, Agirc-Arrco)" if pw_cor_2070 else "n.d.",
+        "Ecart":      ecart_pw,
+        "Note":       "Ecart = revalorisation Agirc-Arrco (~+0.26 pt PIB dep. 2070, COR 2026 Tab 2.5). Scenar. L = borne basse stylisee.",
+    })
+
+    return pd.DataFrame(lignes).set_index("Indicateur")
 
 
 # ---------------------------------------------------------------------------
@@ -521,4 +655,23 @@ if __name__ == "__main__":
             grille, hyp, an, decalages,
             REP_FIGURES / f"fig3_frontiere_{an}_{HORODATAGE}.png",
         )
+
+    # -----------------------------------------------------------------------
+    #  Taches C6 + C7 — Head-to-head maquette vs COR 2026
+    # -----------------------------------------------------------------------
+    print()
+    print("=" * 70)
+    print("HEAD-TO-HEAD MAQUETTE vs COR 2026 — indicateurs comparables")
+    print("Source COR 2026 : rapport annuel juin 2026, onglets Fig 2.3 P2 + Tab 2.10")
+    print("NB : ligne %PIB absente (HORS PERIMETRE — voir hypotheses.yaml)")
+    print("=" * 70)
+    t_h2h = table_head_to_head(traj, grille, hyp)
+    print(t_h2h.to_string())
+
+    print()
+    print("Generation Fig.4 (validation R/A maquette vs COR 2026)...")
+    fig_validation_RA(
+        traj,
+        REP_FIGURES / f"fig4_validation_RA_{HORODATAGE}.png",
+    )
     print("Pipeline termine.")

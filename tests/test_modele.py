@@ -134,8 +134,22 @@ def test_calage_economique_RA_2026():
     reason=f"Fichier absent : {PYRAMIDE_PATH}",
 )
 def test_calage_economique_tau_2026():
-    """tau*(2026) dans [0.27, 0.31] (coherent avec cotisations effectives ~28%, COR)."""
+    """tau*(2026) dans [0.27, 0.32].
+
+    tau* est le taux d'equilibre INTEGRALEMENT CONTRIBUTIF (deficit nul,
+    financement 100 % par cotisations). Il est superieur au taux effectif ~28 %
+    car ~1/3 des ressources = transferts d'Etat (277 Md€ / 417 Md€, COR 2026).
+
+    Avec P/W(2026) = 0.55 et R/A(2026) ~ 0.555 : tau*(2026) ~ 0.305.
+    Source pension : COR juin 2026, Fig 2.3 P2 (onglet '2.2a').
+    Source ressources : COR juin 2026, onglet Synthese (Tab 2.2 / Tab 2.4).
+
+    Serie R/A COR 2026 (benchmark, Fig 2.3 P2) :
+      2026: 0.569  (1/1.759)  |  2030: 0.571  (1/1.750)
+      2040: 0.610  (1/1.640)  |  2050: 0.650  (1/1.539)
+      2070: 0.766  (1/1.305)
+    """
     pop = charger_pyramide_age_fin(PYRAMIDE_PATH)
     df = trajectoire(HYP, pop)
     tau = df.loc[2026, "tau_etoile"]
-    assert 0.27 <= tau <= 0.31, f"tau*(2026) = {tau:.4f} hors [0.27, 0.31]"
+    assert 0.27 <= tau <= 0.32, f"tau*(2026) = {tau:.4f} hors [0.27, 0.32]"

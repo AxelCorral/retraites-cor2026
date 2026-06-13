@@ -46,12 +46,14 @@ emploi:
 
 # --- Pensions ----------------------------------------------------------------
 pensions:
-  source: "COR, rapport annuel juin 2025 (tableau indicateurs recapitulatifs)"
+  source: "COR, rapport annuel juin 2026 (onglet Fig 2.3 P2 : pension moy./revenu brut)"
   age_min_retraite: 65            # simplification v0 ; affinable avec taux par age DREES
   # Pension moyenne tous regimes / revenu d'activite BRUT moyen (indicateur COR propre).
   # NE PAS recalculer par division DREES : concepts differents.
-  # Validation scenario L 2070 : cible ~0.32-0.37 selon productivite (COR juin 2025).
-  ratio_pension_salaire_2026: 0.52  # COR juin 2025 : ~52%, valeur ~2022, tous regimes
+  # COR 2026 Fig 2.3 P2 serie "2.2a" : P/W = 55,0 % en 2026.
+  # Scenario L 2070 (indexation prix, borne basse stylisee) : ~40,4 %.
+  # Ecart L vs COR ref 2070 (45,3 %) mesure l'effet revalorisation Agirc-Arrco.
+  ratio_pension_salaire_2026: 0.55  # COR juin 2026 : ~55 % en 2026, tous regimes
 
 # --- Hypotheses economiques (reprises du COR) --------------------------------
 economie:
@@ -59,7 +61,10 @@ economie:
   croissance_productivite_reference: 0.007   # COR juin 2025 : scenario de reference (convergence 0.7%/an)
   croissance_productivite_basse: 0.004
   croissance_productivite_haute: 0.016
-  part_salaires_dans_PIB: 0.57               # PLACEHOLDER pour conversion pts de PIB
+  # part_salaires_dans_PIB : HORS PÉRIMÈTRE — conversion en %PIB non faite.
+  # Concepts divergents : revenu d'activité brut (maquette) ≠ masse salariale macro
+  # (comptabilité nationale D.1). Validation faite sur R/A uniquement (sans %PIB).
+  # part_salaires_dans_PIB: 0.57
 
 # --- Regime d'indexation (les deux scenarios polaires) -----------------------
 indexation:
@@ -158,17 +163,23 @@ calage_economique:
     ratio_RA: 0.56                   # COR : ~1.8 cotisant/retraite => R/A ≈ 0.56
     taux_cotisation_effectif: 0.28   # cotisations retraites / masse salariale brute
   benchmarks_COR_2070:               # validation finale, pas un test v1
-    # COR juin 2025 (ancien millésime, conservé pour traçabilité)
-    ratio_RA_cor2025: 0.71
-    retraites_M_cor2025: 21.6
-    depenses_pct_PIB_cor2025: 14.2
-    pw_L_g007_cor2025: 0.37  # P/W scenario L, g=0.7%/an — COR juin 2025
-    # COR juin 2026 (nouveau millésime, IP2108 + LFSS 2026)
-    # Source : cor2026_donnees_synthese.xlsx (onglets Dépenses en %, Fig 2.3)
-    ratio_RA_cor2026: 0.766       # 1 / 1.305 cotisants/retraités — Fig 2.3 P2
-    depenses_pct_PIB_cor2026: 15.30  # Dépenses %PIB Sc. Ref — onglet Dépenses en %
-    solde_pct_PIB_cor2026: -2.39     # Solde %PIB Sc. Ref — onglet Solde dépenses ressources
-    pw_ref_cor2026: 0.453         # P/W Sc. Ref COR 2026 (incl. revalorisation Agirc-Arrco partielle)
+    # Source active : COR rapport annuel juin 2026
+    # onglet Fig 2.3 P2 (cor2026_donnees_P2.xlsx) et onglet Synthèse
+    ratio_RA: 0.766          # 1/1.305 cotisants/retraités (Fig 2.3 P2)
+    pension_relative: 0.453  # P/W Sc. Ref 2070 (incl. revalorisation Agirc-Arrco)
+    # Série R/A COR 2026 par jalon (Fig 2.3 P2) :
+    #   2026: 0.569  (1/1.759)
+    #   2030: 0.571  (1/1.750)
+    #   2040: 0.610  (1/1.640)
+    #   2050: 0.650  (1/1.539)
+    #   2070: 0.766  (1/1.305)
+    # Âge d'équilibre via levier seul : 67,6 ans en 2070 (COR 2026 Tableau 2.10, p. 126)
+    #
+    # Archivé COR juin 2025 (pour traçabilité) :
+    # ratio_RA_cor2025: 0.71
+    # retraites_M_cor2025: 21.6
+    # depenses_pct_PIB_cor2025: 14.2
+    # pw_L_g007_cor2025: 0.37
 
 # --- Parametres d'analyse de sensibilite -------------------------------------
 # Ces parametres pilotent les figures de frontieres d'equilibre (fig.3).
