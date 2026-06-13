@@ -87,6 +87,15 @@ donnees:
   ip2108_fec_basse: "data/raw/ip2108_fec_basse_2026-06-13.xlsx"
   ip2108_smi_haut:  "data/raw/ip2108_smi_haut_2026-06-13.xlsx"
   ip2108_smi_bas:   "data/raw/ip2108_smi_bas_2026-06-13.xlsx"
+  # Données COR juin 2026 — data/raw/cor2026/ (lecture seule, téléchargés le 2026-06-13)
+  # Source : https://www.cor-retraites.fr/publications/rapport-annuel-2026
+  cor2026_rapport:          "data/raw/cor2026/cor2026_rapport.pdf"
+  cor2026_synthese:         "data/raw/cor2026/cor2026_synthese.pdf"
+  cor2026_donnees_P1:       "data/raw/cor2026/cor2026_donnees_P1.xlsx"
+  cor2026_donnees_P2:       "data/raw/cor2026/cor2026_donnees_P2.xlsx"
+  cor2026_donnees_P3:       "data/raw/cor2026/cor2026_donnees_P3.xlsx"
+  cor2026_donnees_P4:       "data/raw/cor2026/cor2026_donnees_P4.xlsx"
+  cor2026_donnees_synthese: "data/raw/cor2026/cor2026_donnees_synthese.xlsx"
 
 # --- Tests de calage (chiffres officiels IP2108, scenario central) -----------
 # Le modele DOIT reproduire ces valeurs avant toute conclusion.
@@ -149,10 +158,17 @@ calage_economique:
     ratio_RA: 0.56                   # COR : ~1.8 cotisant/retraite => R/A ≈ 0.56
     taux_cotisation_effectif: 0.28   # cotisations retraites / masse salariale brute
   benchmarks_COR_2070:               # validation finale, pas un test v1
-    ratio_RA: 0.71
-    retraites_M: 21.6
-    depenses_pct_PIB: 14.2
-    pw_L_g007: 0.37  # P/W scenario L, g=0.7%/an — COR rapport annuel juin 2025
+    # COR juin 2025 (ancien millésime, conservé pour traçabilité)
+    ratio_RA_cor2025: 0.71
+    retraites_M_cor2025: 21.6
+    depenses_pct_PIB_cor2025: 14.2
+    pw_L_g007_cor2025: 0.37  # P/W scenario L, g=0.7%/an — COR juin 2025
+    # COR juin 2026 (nouveau millésime, IP2108 + LFSS 2026)
+    # Source : cor2026_donnees_synthese.xlsx (onglets Dépenses en %, Fig 2.3)
+    ratio_RA_cor2026: 0.766       # 1 / 1.305 cotisants/retraités — Fig 2.3 P2
+    depenses_pct_PIB_cor2026: 15.30  # Dépenses %PIB Sc. Ref — onglet Dépenses en %
+    solde_pct_PIB_cor2026: -2.39     # Solde %PIB Sc. Ref — onglet Solde dépenses ressources
+    pw_ref_cor2026: 0.453         # P/W Sc. Ref COR 2026 (incl. revalorisation Agirc-Arrco partielle)
 
 # --- Parametres d'analyse de sensibilite -------------------------------------
 # Ces parametres pilotent les figures de frontieres d'equilibre (fig.3).
