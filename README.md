@@ -1,20 +1,16 @@
-# Soutenabilité des retraites — Maquette comptable reproductible (COR 2026)
+![Soutenabilité des retraites — reconstruction ouverte du diagnostic COR 2026](docs/banner.png)
 
+# Soutenabilité des retraites — Maquette comptable reproductible (COR 2026)
 Maquette comptable agrégée calculant le taux de cotisation d'équilibre du système
 de retraite français par répartition sous les projections démographiques Insee 2026
 (Insee Première n°2108, 08/06/2026).
-
 > **Ce n'est PAS un modèle de projection au sens du COR.** La valeur ajoutée est la
 > transparence et la reproductibilité : équation fermée, paramètres sourcés, tests
 > de calage automatisés. Le COR est un benchmark de validation, pas un adversaire.
-
 ## Équation fondamentale
-
     tau*(t) = [ R(t) / A(t) ] × [ Pbar(t) / Wbar(t) ]
-
 - `R/A` : ratio de dépendance économique (retraités / cotisants)
 - `P/W` : pension moyenne relative (pension / salaire moyen)
-
 ## Structure du dépôt
 
 ```
