@@ -1,7 +1,36 @@
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+build/
+dist/
+*.egg-info/
+
+# Tests
 .pytest_cache/
+
+# Données sources officielles (non redistribuables : INSEE/COR/DREES)
+# Télécharger via les URLs dans config/hypotheses.yaml
 data/raw/
 data/processed/
-figures/*.png
+
+# Fichiers de travail locaux — non destinés à la publication
+resume_session_*.txt
+*.docx
+*.zip
+.claude/
+
+# Carrousels racine — à déplacer dans docs/diffusion/ manuellement si souhaité
+carrousel_*.pdf
+Carrousel*.html
+Carrousel*.pdf
+
+# Systèmes
+.DS_Store
+Thumbs.db
+
+# figures/ et figures/social/ sont SUIVIS (ne pas ajouter de règle d'exclusion ici)
